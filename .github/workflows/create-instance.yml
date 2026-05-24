@@ -46,6 +46,7 @@ jobs:
 
           echo "Image ID: $IMAGE_ID"
           printf '%s' "$SSH_KEY" > /tmp/ssh_key.pub
+          export IMAGE_ID
 
           python3 - << PYEOF
           import oci, os
@@ -84,9 +85,3 @@ jobs:
           response = compute.launch_instance(details)
           print("Instance created:", response.data.id)
           PYEOF
-        env:
-          OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
-          TENANCY_ID: ${{ secrets.OCI_TENANCY }}
-          SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
-          SSH_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
-          IMAGE_ID: ""
