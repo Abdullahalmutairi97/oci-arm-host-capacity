@@ -29,7 +29,6 @@ jobs:
       - name: Try to create instance
         env:
           OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
-          SUPPRESS_LABEL_WARNING: "True"
         run: |
           IMAGE_ID=$(oci compute image list \
             --compartment-id "${{ secrets.OCI_TENANCY }}" \
@@ -43,15 +42,14 @@ jobs:
             --raw-output 2>/dev/null)
 
           echo "Image ID: $IMAGE_ID"
-
           printf '%s' "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/ssh_key.pub
-          printf '{"ocpus":4.0,"memoryInGBs":24.0}' > /tmp/shape.json
 
           oci compute instance launch \
             --availability-domain "AD-1" \
             --compartment-id "${{ secrets.OCI_TENANCY }}" \
             --shape "VM.Standard.A1.Flex" \
-            --shape-config file:///tmp/shape.json \
+            --ocpus 4 \
+            --memory-in-gbs 24 \
             --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
             --image-id "$IMAGE_ID" \
             --assign-public-ip true \
