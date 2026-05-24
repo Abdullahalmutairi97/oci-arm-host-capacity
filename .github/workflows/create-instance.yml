@@ -16,6 +16,7 @@ jobs:
           mkdir -p ~/.oci
           echo "${{ secrets.OCI_KEY_CONTENT }}" > ~/.oci/key.pem
           chmod 600 ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
           user=${{ secrets.OCI_USER }}
@@ -24,17 +25,28 @@ jobs:
           region=${{ secrets.OCI_REGION }}
           key_file=~/.oci/key.pem
           EOF
+          chmod 600 ~/.oci/config
 
       - name: Try to create instance
         run: |
+          IMAGE_ID=$(oci compute image list \
+            --compartment-id ${{ secrets.OCI_TENANCY }} \
+            --operating-system "Canonical Ubuntu" \
+            --operating-system-version "22.04" \
+            --shape VM.Standard.A1.Flex \
+            --query 'data[0].id' \
+            --raw-output)
+
+          echo "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/ssh_key.pub
+
           oci compute instance launch \
             --availability-domain AD-1 \
             --compartment-id ${{ secrets.OCI_TENANCY }} \
             --shape VM.Standard.A1.Flex \
             --shape-config '{"ocpus":4,"memoryInGBs":24}' \
             --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
-            --image-id $(oci compute image list --compartment-id ${{ secrets.OCI_TENANCY }} --operating-system "Canonical Ubuntu" --operating-system-version "22.04" --shape VM.Standard.A1.Flex --query 'data[0].id' --raw-output) \
+            --image-id $IMAGE_ID \
             --assign-public-ip true \
             --boot-volume-size-in-gbs 100 \
             --display-name nextcloud \
-            --ssh-authorized-keys-file <(echo "${{ secrets.SSH_PUBLIC_KEY }}")
+            --ssh-authorized-keys-file /tmp/ssh_key.pub
