@@ -1,4 +1,4 @@
-name: Oracle Free Tier ARM Creator
+name: Oracle ARM Free Tier Auto Creator
 
 on:
   workflow_dispatch:
@@ -6,56 +6,77 @@ on:
     - cron: "*/10 * * * *"
 
 jobs:
-  create-instance:
+  create-arm-instance:
     runs-on: ubuntu-latest
 
     steps:
       - name: Install OCI CLI
         run: |
-          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- \
-            --accept-all-defaults
+          bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)" -- --accept-all-defaults
           echo "$HOME/bin" >> $GITHUB_PATH
 
       - name: Configure OCI CLI
         run: |
           mkdir -p ~/.oci
+
           echo "${{ secrets.OCI_KEY_CONTENT }}" > ~/.oci/oci_api_key.pem
-          chmod 600 ~/.oci/oci_api_key.pem
+
           cat > ~/.oci/config <<EOF
           [DEFAULT]
           user=${{ secrets.OCI_USER }}
           fingerprint=${{ secrets.OCI_FINGERPRINT }}
           tenancy=${{ secrets.OCI_TENANCY }}
           region=${{ secrets.OCI_REGION }}
-          key_file=~/.oci/oci_api_key.pem
+          key_file=/home/runner/.oci/oci_api_key.pem
           EOF
+
           chmod 600 ~/.oci/config
+          chmod 600 ~/.oci/oci_api_key.pem
+
+      - name: Test OCI Auth
+        run: |
+          echo "Testing auth..."
+
+          oci iam availability-domain list \
+            --compartment-id "${{ secrets.OCI_TENANCY }}"
 
       - name: Find Ubuntu ARM Image
         id: image
         run: |
+          echo "Finding Ubuntu ARM image..."
+
           IMAGE_ID=$(oci compute image list \
-            --compartment-id ${{ secrets.OCI_TENANCY }} \
+            --compartment-id "${{ secrets.OCI_TENANCY }}" \
             --operating-system "Canonical Ubuntu" \
-            --operating-system-version "22.04" \
             --shape "VM.Standard.A1.Flex" \
             --all \
             --query 'data[0].id' \
             --raw-output)
+
           echo "IMAGE_ID=$IMAGE_ID"
+
           if [ -z "$IMAGE_ID" ] || [ "$IMAGE_ID" = "null" ]; then
             echo "No image found"
             exit 1
           fi
+
           echo "image_id=$IMAGE_ID" >> $GITHUB_OUTPUT
 
       - name: Launch ARM Instance
         run: |
+          echo "Getting availability domain..."
+
           AD=$(oci iam availability-domain list \
-            --compartment-id ${{ secrets.OCI_TENANCY }} \
+            --compartment-id "${{ secrets.OCI_TENANCY }}" \
             --query 'data[0].name' \
             --raw-output)
-          echo "Using AD: $AD"
+
+          echo "AD=$AD"
+
+          INSTANCE_NAME="arm-free-$(date +%s)"
+
+          echo "Launching instance..."
+
           oci compute instance launch \
             --availability-domain "$AD" \
             --compartment-id "${{ secrets.OCI_TENANCY }}" \
@@ -64,5 +85,10 @@ jobs:
             --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
             --assign-public-ip true \
             --image-id "${{ steps.image.outputs.image_id }}" \
-            --display-name "nextcloud" \
+            --display-name "$INSTANCE_NAME" \
             --metadata "{\"ssh_authorized_keys\":\"${{ secrets.SSH_PUBLIC_KEY }}\"}"
+
+      - name: Done
+        if: success()
+        run: |
+          echo "SUCCESS - ARM instance created"
