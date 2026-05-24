@@ -16,7 +16,6 @@ jobs:
           mkdir -p ~/.oci
           echo "${{ secrets.OCI_KEY_CONTENT }}" > ~/.oci/key.pem
           chmod 600 ~/.oci/key.pem
-          chmod 600 ~/.oci/key.pem
           cat > ~/.oci/config << EOF
           [DEFAULT]
           user=${{ secrets.OCI_USER }}
@@ -29,24 +28,31 @@ jobs:
 
       - name: Try to create instance
         run: |
+          export SUPPRESS_LABEL_WARNING=True
+          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True
+
           IMAGE_ID=$(oci compute image list \
-            --compartment-id ${{ secrets.OCI_TENANCY }} \
+            --compartment-id "${{ secrets.OCI_TENANCY }}" \
             --operating-system "Canonical Ubuntu" \
             --operating-system-version "22.04" \
-            --shape VM.Standard.A1.Flex \
-            --query 'data[0].id' \
-            --raw-output)
+            --shape "VM.Standard.A1.Flex" \
+            --sort-by TIMECREATED \
+            --sort-order DESC \
+            --limit 1 \
+            --query 'data[0]."id"' \
+            --raw-output 2>/dev/null)
 
+          echo "Image ID: $IMAGE_ID"
           echo "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/ssh_key.pub
 
           oci compute instance launch \
-            --availability-domain AD-1 \
-            --compartment-id ${{ secrets.OCI_TENANCY }} \
-            --shape VM.Standard.A1.Flex \
+            --availability-domain "AD-1" \
+            --compartment-id "${{ secrets.OCI_TENANCY }}" \
+            --shape "VM.Standard.A1.Flex" \
             --shape-config '{"ocpus":4,"memoryInGBs":24}' \
-            --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
-            --image-id $IMAGE_ID \
+            --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
+            --image-id "$IMAGE_ID" \
             --assign-public-ip true \
             --boot-volume-size-in-gbs 100 \
-            --display-name nextcloud \
+            --display-name "nextcloud" \
             --ssh-authorized-keys-file /tmp/ssh_key.pub
