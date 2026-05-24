@@ -28,7 +28,6 @@ jobs:
 
       - name: Try to create instance
         run: |
-          export SUPPRESS_LABEL_WARNING=True
           export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True
 
           IMAGE_ID=$(oci compute image list \
@@ -49,7 +48,7 @@ jobs:
             --availability-domain "AD-1" \
             --compartment-id "${{ secrets.OCI_TENANCY }}" \
             --shape "VM.Standard.A1.Flex" \
-            --shape-config '{"ocpus":4,"memoryInGBs":24}' \
+            --shape-config "{\"ocpus\":4,\"memoryInGBs\":24}" \
             --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
             --image-id "$IMAGE_ID" \
             --assign-public-ip true \
