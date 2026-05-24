@@ -8,27 +8,34 @@ jobs:
   create-instance:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-      - name: Install dependencies
-        run: composer install
-      - name: Run
-        env:
-          OCI_USER: ${{ secrets.OCI_USER }}
-          OCI_TENANCY: ${{ secrets.OCI_TENANCY }}
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
-          OCI_KEY_CONTENT: ${{ secrets.OCI_KEY_CONTENT }}
-          OCI_SUBNET_ID: ${{ secrets.OCI_SUBNET_ID }}
-          OCI_COMPUTE_SHAPE: VM.Standard.A1.Flex
-          OCI_OCPUS: 4
-          OCI_MEMORY_IN_GBS: 24
-          OPERATING_SYSTEM: Canonical Ubuntu
-          OS_VERSION: 22.04
-          ASSIGN_PUBLIC_IP: true
-          OCT_FREE_AD: AD-1
-          BOOT_VOLUME_SIZE: 100
-        run: php index.php
+      - name: Install OCI CLI
+        run: |
+          pip install oci-cli
+
+      - name: Configure OCI
+        run: |
+          mkdir -p ~/.oci
+          echo "${{ secrets.OCI_KEY_CONTENT }}" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY }}
+          region=${{ secrets.OCI_REGION }}
+          key_file=~/.oci/key.pem
+          EOF
+
+      - name: Try to create instance
+        run: |
+          oci compute instance launch \
+            --availability-domain AD-1 \
+            --compartment-id ${{ secrets.OCI_TENANCY }} \
+            --shape VM.Standard.A1.Flex \
+            --shape-config '{"ocpus":4,"memoryInGBs":24}' \
+            --subnet-id ${{ secrets.OCI_SUBNET_ID }} \
+            --image-id $(oci compute image list --compartment-id ${{ secrets.OCI_TENANCY }} --operating-system "Canonical Ubuntu" --operating-system-version "22.04" --shape VM.Standard.A1.Flex --query 'data[0].id' --raw-output) \
+            --assign-public-ip true \
+            --boot-volume-size-in-gbs 100 \
+            --display-name nextcloud \
+            --ssh-authorized-keys-file <(echo "${{ secrets.SSH_PUBLIC_KEY }}")
