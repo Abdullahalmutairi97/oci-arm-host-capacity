@@ -27,9 +27,10 @@ jobs:
           chmod 600 ~/.oci/config
 
       - name: Try to create instance
+        env:
+          OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING: "True"
+          SUPPRESS_LABEL_WARNING: "True"
         run: |
-          export OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True
-
           IMAGE_ID=$(oci compute image list \
             --compartment-id "${{ secrets.OCI_TENANCY }}" \
             --operating-system "Canonical Ubuntu" \
@@ -42,13 +43,15 @@ jobs:
             --raw-output 2>/dev/null)
 
           echo "Image ID: $IMAGE_ID"
-          echo "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/ssh_key.pub
+
+          printf '%s' "${{ secrets.SSH_PUBLIC_KEY }}" > /tmp/ssh_key.pub
+          printf '{"ocpus":4.0,"memoryInGBs":24.0}' > /tmp/shape.json
 
           oci compute instance launch \
             --availability-domain "AD-1" \
             --compartment-id "${{ secrets.OCI_TENANCY }}" \
             --shape "VM.Standard.A1.Flex" \
-            --shape-config "{\"ocpus\":4,\"memoryInGBs\":24}" \
+            --shape-config file:///tmp/shape.json \
             --subnet-id "${{ secrets.OCI_SUBNET_ID }}" \
             --image-id "$IMAGE_ID" \
             --assign-public-ip true \
